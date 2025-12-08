@@ -32,7 +32,24 @@ async function run() {
         const db = client.db('bloodCare');
         const usersCollection = db.collection('users');
 
-        
+        app.post("/users", async (req, res) => {
+          const userData = req.body;
+          userData.role = "donor";
+          userData.status = "active";
+          userData.createdAt = new Date().toISOString();
+          userData.lastLoggedIn = new Date().toISOString();
+
+          const exists = await usersCollection.findOne({email: userData.email});
+          if (exists) {
+            const result = await usersCollection.updateOne({email: userData.email}, {
+              $set: { lastLoggedIn: new Date().toISOString() }
+            });
+            return res.send(result);
+          }
+          
+          const result = usersCollection.insertOne(userData);
+          res.send(result);
+        });
 
         await client.db('admin').command({ ping: 1 })
         console.log('Pinged your deployment. You successfully connected to MongoDB!')
