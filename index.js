@@ -31,6 +31,7 @@ async function run() {
     try {
         const db = client.db('bloodCare');
         const usersCollection = db.collection('users');
+        const donationReqCollection = db.collection('donation_requests');
 
         app.post("/users", async (req, res) => {
           const userData = req.body;
@@ -49,6 +50,41 @@ async function run() {
           
           const result = usersCollection.insertOne(userData);
           res.send(result);
+        });
+
+        app.post("/donation-requests", async (req, res) => {
+          const requestData = req.body;
+          requestData.donationStatus = "pending";
+          requestData.donorName = null
+          requestData.donorEmail = null
+          requestData.createdAt = new Date().toISOString();
+          requestData.updatedAt = new Date().toISOString();
+
+          const result = await donationReqCollection.insertOne(requestData);
+          res.send(result);
+        });
+
+        app.get("/donation-requests", async (req, res) => {
+          const emailQuery = req.query.email;
+          const statusFilterQuery = req.query.statusFilter;
+
+          if (emailQuery && statusFilterQuery) {
+            const result = await donationReqCollection.find({requesterEmail: emailQuery, donationStatus: statusFilterQuery}).sort({createdAt: -1}).toArray();
+            return res.send(result);
+          }
+          if (emailQuery) {
+            const result = await donationReqCollection.find({requesterEmail: emailQuery}).toArray();
+            return res.send(result);
+          }
+
+          const result = await donationReqCollection.find({donationStatus: statusFilterQuery}).toArray();
+          res.send(result);
+        });
+
+        app.get("/donation-requests/:id", async (req, res) => {
+          const id = req.params.id
+          const result = await donationReqCollection.findOne({_id: new ObjectId(id)});
+          res.send(result)
         });
 
         await client.db('admin').command({ ping: 1 })
