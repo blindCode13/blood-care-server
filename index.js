@@ -33,11 +33,15 @@ async function run() {
         const usersCollection = db.collection('users');
         const donationReqCollection = db.collection('donation_requests');
 
+
+        //
         app.get("/users/check-status/:email", async (req, res) => {
           const result = await usersCollection.findOne({email: req.params.email}, {projection: {status: 1, _id: 0}});
           res.send(result);
         });
 
+
+        //
         app.post("/users", async (req, res) => {
           const userData = req.body;
           userData.role = "donor";
@@ -57,6 +61,8 @@ async function run() {
           res.send(result);
         });
 
+
+        //
         app.post("/donation-requests", async (req, res) => {
           const requestData = req.body;
           requestData.donationStatus = "pending";
@@ -69,6 +75,8 @@ async function run() {
           res.send(result);
         });
 
+
+        //
         app.get("/donation-requests", async (req, res) => {
           const emailQuery = req.query.email;
           const statusFilterQuery = req.query.statusFilter;
@@ -86,12 +94,49 @@ async function run() {
           res.send(result);
         });
 
+
+        //
+        app.get("/donations", async (req, res) => {
+          const emailQuery = req.query.email;
+          const statusFilterQuery = req.query.statusFilter;
+          if (emailQuery && statusFilterQuery) {
+            const result = await donationReqCollection.find({donorEmail: emailQuery, donationStatus: statusFilterQuery}).sort({createdAt: -1}).toArray();
+            return res.send(result);
+          }
+          if (emailQuery) {
+            const result = await donationReqCollection.find({donorEmail: emailQuery}).sort({createdAt: -1}).toArray();
+            return res.send(result);
+          }
+        });
+
+
+        //
+        app.patch("/update-donation-status/:id", async (req, res) => {
+          const id = req.params.id;
+          const request = req.body;
+          const result = await donationReqCollection.updateOne({_id: new ObjectId(id)}, {$set: request});
+          res.send(result);
+        });
+
+
+        //
+        app.patch("/donate/:id", async (req, res) => {
+          const id = req.params.id;
+          const {name, email} = req.body;
+          const result = await donationReqCollection.updateOne({_id: new ObjectId(id)}, {$set: {donorName: name, donorEmail: email, donationStatus: 'inprogress'}});
+          res.send(result);
+        });
+
+
+        //
         app.get("/donation-requests/:id", async (req, res) => {
           const id = req.params.id
           const result = await donationReqCollection.findOne({_id: new ObjectId(id)});
           res.send(result)
         });
 
+
+        //
         app.patch("/donation-requests/edit/:id", async (req, res) => {
           const id = req.params.id;
           const {
@@ -109,6 +154,8 @@ async function run() {
           res.send(result);
         });
 
+
+        //
         app.delete("/donation-requests/delete/:id", async (req, res) => {
           const id = req.params.id;
           const result = await donationReqCollection.deleteOne({_id: new ObjectId(id)});
