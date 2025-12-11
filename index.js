@@ -101,6 +101,24 @@ async function run() {
 
 
         //
+        app.get("/users/:email", verifyJWT, async (req, res) => {
+          const email = req.params.email;
+          const result = await usersCollection.findOne({email});
+          res.send(result);
+        });
+
+
+        //
+        app.patch("/users/update/:email", verifyJWT, async (req, res) => {
+          const email = req.params.email;
+          const {name, avatar, bloodGroup, district, upazila} = req.body;
+
+          const result = await usersCollection.updateOne({email}, {$set: {name, avatar, bloodGroup, district, upazila}});
+          res.send(result);
+        });
+
+
+        //
         app.get("/users", verifyJWT, verifyADMIN, async (req, res) => {
           const result = await usersCollection.find({email: {$ne: req.tokenEmail}}).toArray();
           res.send(result);
