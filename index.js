@@ -53,11 +53,29 @@ async function run() {
         const usersCollection = db.collection('users');
         const donationReqCollection = db.collection('donation_requests');
 
+        const verifyADMIN = async (req, res, next) => {
+          const email = req.tokenEmail;
+          const user = await usersCollection.findOne({ email });
+            if (user?.role !== 'admin')
+              return res
+                .status(403)
+                .send({ message: 'Admin only Actions!', role: user?.role });
+              next();
+          }
+
 
         //
         app.get("/users/check-status/:email", async (req, res) => {
           const result = await usersCollection.findOne({email: req.params.email}, {projection: {status: 1, _id: 0}});
           res.send(result);
+        });
+
+
+        //
+        app.get("/application-stats", verifyJWT, async (req, res) => {
+          const totalUsers = await usersCollection.countDocuments();
+          const totalDonationRequest = await donationReqCollection.countDocuments();
+          res.send({totalUsers, totalDonationRequest}); 
         });
 
 
@@ -78,6 +96,45 @@ async function run() {
           }
           
           const result = usersCollection.insertOne(userData);
+          res.send(result);
+        });
+
+
+        //
+        app.get("/users", verifyJWT, verifyADMIN, async (req, res) => {
+          const result = await usersCollection.find({email: {$ne: req.tokenEmail}}).toArray();
+          res.send(result);
+        });
+
+
+        //
+        app.patch("/users/block/:id", verifyJWT, verifyADMIN, async (req, res) => {
+          const id = req.params.id;
+          const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {status: 'blocked'}});
+          res.send(result);
+        });
+
+
+        //
+        app.patch("/users/unblock/:id", verifyJWT, verifyADMIN, async (req, res) => {
+          const id = req.params.id;
+          const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {status: 'active'}});
+          res.send(result);
+        });
+
+
+        //
+        app.patch("/users/make-volunteer/:id", verifyJWT, verifyADMIN, async (req, res) => {
+          const id = req.params.id;
+          const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {role: 'volunteer'}});
+          res.send(result);
+        });
+
+
+        //
+        app.patch("/users/make-admin/:id", verifyJWT, verifyADMIN, async (req, res) => {
+          const id = req.params.id;
+          const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {role: 'admin'}});
           res.send(result);
         });
 
@@ -104,6 +161,13 @@ async function run() {
 
 
         //
+        app.get("/donation-requests/public", async (req, res) => {
+          const result = await donationReqCollection.find({donationStatus: 'pending'}).toArray();
+          res.send(result);
+        });
+
+
+        //
         app.get("/donation-requests", verifyJWT, async (req, res) => {
           const emailQuery = req.query.email;
           const statusFilterQuery = req.query.statusFilter;
@@ -114,6 +178,10 @@ async function run() {
           }
           if (emailQuery) {
             const result = await donationReqCollection.find({requesterEmail: emailQuery}).toArray();
+            return res.send(result);
+          }
+          if (statusFilterQuery) {
+            const result = await donationReqCollection.find({donationStatus: statusFilterQuery}).toArray();
             return res.send(result);
           }
 
