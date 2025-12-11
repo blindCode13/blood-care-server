@@ -2,7 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const admin = require('firebase-admin');
 const port = process.env.PORT || 3000;
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf-8');
+
+const serviceAccount = JSON.parse(decoded)
+  admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 const app = express();
 
@@ -15,6 +22,19 @@ app.use(
   })
 );
 app.use(express.json());
+
+const verifyJWT = async (req, res, next) => {
+  const token = req?.headers?.authorization?.split(' ')[1];
+  if (!token) return res.status(401).send({ message: 'Unauthorized Access!' });
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.tokenEmail = decoded.email;
+    next();
+  } catch (err) {
+    console.log(err);
+    return res.status(401).send({ message: 'Unauthorized Access!', err });
+  }
+}
 
 // mongodb
 const client = new MongoClient(process.env.MONGODB_URI, {
@@ -63,7 +83,14 @@ async function run() {
 
 
         //
-        app.post("/donation-requests", async (req, res) => {
+        app.get('/user/role', verifyJWT, async (req, res) => {
+          const result = await usersCollection.findOne({ email: req.tokenEmail });
+          res.send({ role: result?.role });
+        });
+
+
+        //
+        app.post("/donation-requests", verifyJWT, async (req, res) => {
           const requestData = req.body;
           requestData.donationStatus = "pending";
           requestData.donorName = null
@@ -77,7 +104,7 @@ async function run() {
 
 
         //
-        app.get("/donation-requests", async (req, res) => {
+        app.get("/donation-requests", verifyJWT, async (req, res) => {
           const emailQuery = req.query.email;
           const statusFilterQuery = req.query.statusFilter;
 
@@ -90,13 +117,13 @@ async function run() {
             return res.send(result);
           }
 
-          const result = await donationReqCollection.find({donationStatus: statusFilterQuery}).toArray();
+          const result = await donationReqCollection.find().toArray();
           res.send(result);
         });
 
 
         //
-        app.get("/donations", async (req, res) => {
+        app.get("/donations", verifyJWT, async (req, res) => {
           const emailQuery = req.query.email;
           const statusFilterQuery = req.query.statusFilter;
           if (emailQuery && statusFilterQuery) {
@@ -111,7 +138,7 @@ async function run() {
 
 
         //
-        app.patch("/update-donation-status/:id", async (req, res) => {
+        app.patch("/update-donation-status/:id", verifyJWT, async (req, res) => {
           const id = req.params.id;
           const request = req.body;
           const result = await donationReqCollection.updateOne({_id: new ObjectId(id)}, {$set: request});
@@ -137,7 +164,8 @@ async function run() {
 
 
         //
-        app.patch("/donation-requests/edit/:id", async (req, res) => {
+        app.patch("/donation-requests/edit/:id", verifyJWT, async (req, res) => {
+          
           const id = req.params.id;
           const {
             recipientName, recipientDistrict, recipientUpazila, hospitalName, fullAddress,
@@ -156,7 +184,13 @@ async function run() {
 
 
         //
-        app.delete("/donation-requests/delete/:id", async (req, res) => {
+        app.delete("/donation-requests/delete/:id", verifyJWT, async (req, res) => {
+          const email = req.query.email;
+
+          if (email !== req.tokenEmail) {
+            return res.status(403).send({ message: 'Forbidden Access'});
+          }
+
           const id = req.params.id;
           const result = await donationReqCollection.deleteOne({_id: new ObjectId(id)});
           res.send(result);
