@@ -80,6 +80,14 @@ async function run() {
 
 
         //
+        app.get("/bloodType/:email", async (req, res) => {
+          const email = req.params.email
+          const result = await usersCollection.findOne({email}, {projection: {bloodGroup: 1, _id: 0}});
+          res.send(result);
+        });
+
+
+        //
         app.post("/users", async (req, res) => {
           const userData = req.body;
           userData.role = "donor";
