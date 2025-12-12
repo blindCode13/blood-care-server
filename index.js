@@ -109,6 +109,21 @@ async function run() {
 
 
         //
+        app.get("/users/donors", async (req, res) => {
+          const currentUser = req.query.currentUser;
+          const {blood, district, upazila} = req.query;
+          const searchFilter = {};
+          if (blood !== 'all') searchFilter.bloodGroup = blood;
+          if (district) searchFilter.district = district;
+          if (upazila) searchFilter.upazila = upazila;
+          if (currentUser) searchFilter.email = {$ne: currentUser};
+
+          const result = await usersCollection.find({...searchFilter, role: 'donor'}).toArray();
+          res.send(result);
+        });
+
+
+        //
         app.get("/users/:email", verifyJWT, async (req, res) => {
           const email = req.params.email;
           const result = await usersCollection.findOne({email});
@@ -175,9 +190,9 @@ async function run() {
         //
         app.post("/donation-requests", verifyJWT, async (req, res) => {
           const requestData = req.body;
-          requestData.donationStatus = "pending";
-          requestData.donorName = null
-          requestData.donorEmail = null
+          if (requestData.donorEmail) {
+            requestData.donationStatus = "inprogress";
+          } else { requestData.donationStatus = "pending"; }
           requestData.createdAt = new Date().toISOString();
           requestData.updatedAt = new Date().toISOString();
 
