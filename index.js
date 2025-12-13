@@ -172,7 +172,16 @@ async function run() {
         app.get("/application-stats", verifyJWT, async (req, res) => {
           const totalUsers = await usersCollection.countDocuments();
           const totalDonationRequest = await donationReqCollection.countDocuments();
-          res.send({totalUsers, totalDonationRequest}); 
+          const result = await fundCollection.aggregate([
+            {
+              $group: {
+                _id: null,
+                totalAmount: { $sum: "$amount" }
+              }
+            }
+          ]).toArray();
+ 
+          res.send({totalUsers, totalDonationRequest, totalFunding: result[0].totalAmount}); 
         });
 
 
@@ -300,8 +309,10 @@ async function run() {
 
         //
         app.get("/donation-requests/public", async (req, res) => {
-          const result = await donationReqCollection.find({donationStatus: 'pending'}).toArray();
-          res.send(result);
+          const {limit, skip} = req.query;
+          const count = await donationReqCollection.countDocuments();
+          const result = await donationReqCollection.find({donationStatus: 'pending'}).skip(Number(skip)).limit(Number(limit)).toArray();
+          res.send({result, count});
         });
 
 
