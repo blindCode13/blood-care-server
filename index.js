@@ -172,7 +172,11 @@ async function run() {
         app.get("/application-stats", verifyJWT, async (req, res) => {
           const totalUsers = await usersCollection.countDocuments();
           const totalDonationRequest = await donationReqCollection.countDocuments();
-          const result = await fundCollection.aggregate([
+          const funds = await fundCollection.countDocuments();
+          let totalFunds = 0;
+          
+          if (funds !== 0) {
+            const result = await fundCollection.aggregate([
             {
               $group: {
                 _id: null,
@@ -180,8 +184,10 @@ async function run() {
               }
             }
           ]).toArray();
- 
-          res.send({totalUsers, totalDonationRequest, totalFunding: result[0].totalAmount}); 
+          totalFunds = result[0].totalAmount;
+          }
+          
+          res.send({totalUsers, totalDonationRequest, totalFunding: totalFunds}); 
         });
 
 
@@ -257,6 +263,9 @@ async function run() {
         //
         app.patch("/users/block/:id", verifyJWT, verifyADMIN, async (req, res) => {
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {status: 'blocked'}});
           res.send(result);
         });
@@ -265,6 +274,9 @@ async function run() {
         //
         app.patch("/users/unblock/:id", verifyJWT, verifyADMIN, async (req, res) => {
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {status: 'active'}});
           res.send(result);
         });
@@ -273,6 +285,9 @@ async function run() {
         //
         app.patch("/users/make-volunteer/:id", verifyJWT, verifyADMIN, async (req, res) => {
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {role: 'volunteer'}});
           res.send(result);
         });
@@ -281,6 +296,9 @@ async function run() {
         //
         app.patch("/users/make-admin/:id", verifyJWT, verifyADMIN, async (req, res) => {
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const result = await usersCollection.updateOne({_id: new ObjectId(id)}, {$set: {role: 'admin'}});
           res.send(result);
         });
@@ -321,13 +339,13 @@ async function run() {
           const {email, statusFilter, limit, skip} = req.query;
 
           if (email && statusFilter) {
-            const count = await donationReqCollection.countDocuments({email, donationStatus: statusFilter})
-            const result = await donationReqCollection.find({requesterEmail: email, donationStatus: statusFilter}).sort({createdAt: -1}).toArray();
-            return res.send(result);
+            const count = await donationReqCollection.countDocuments({requesterEmail: email, donationStatus: statusFilter})
+            const result = await donationReqCollection.find({requesterEmail: email, donationStatus: statusFilter}).skip(Number(skip)).limit(Number(limit)).sort({createdAt: -1}).toArray();
+            return res.send({result, count});
           }
           if (email) {
             const count = await donationReqCollection.countDocuments({requesterEmail: email});
-            const result = await donationReqCollection.find({requesterEmail: email}).toArray();
+            const result = await donationReqCollection.find({requesterEmail: email}).skip(Number(skip)).limit(Number(limit)).toArray();
             return res.send({result, count});
           }
           if (statusFilter) {
@@ -344,15 +362,17 @@ async function run() {
 
         //
         app.get("/donations", verifyJWT, async (req, res) => {
-          const emailQuery = req.query.email;
-          const statusFilterQuery = req.query.statusFilter;
-          if (emailQuery && statusFilterQuery) {
-            const result = await donationReqCollection.find({donorEmail: emailQuery, donationStatus: statusFilterQuery}).sort({createdAt: -1}).toArray();
-            return res.send(result);
+          const {email, statusFilter, limit, skip} = req.query;
+
+          if (email && statusFilter) {
+            const count = await donationReqCollection.countDocuments({donorEmail: email, donationStatus: statusFilter});
+            const result = await donationReqCollection.find({donorEmail: email, donationStatus: statusFilter}).skip(Number(skip)).limit(Number(limit)).sort({createdAt: -1}).toArray();
+            return res.send({result, count});
           }
-          if (emailQuery) {
-            const result = await donationReqCollection.find({donorEmail: emailQuery}).sort({createdAt: -1}).toArray();
-            return res.send(result);
+          if (email) {
+            const count = await donationReqCollection.countDocuments({donorEmail: email});
+            const result = await donationReqCollection.find({donorEmail: email}).skip(Number(skip)).limit(Number(limit)).sort({createdAt: -1}).toArray();
+            return res.send({result, count});
           }
         });
 
@@ -360,6 +380,9 @@ async function run() {
         //
         app.patch("/update-donation-status/:id", verifyJWT, async (req, res) => {
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const request = req.body;
           const result = await donationReqCollection.updateOne({_id: new ObjectId(id)}, {$set: request});
           res.send(result);
@@ -369,6 +392,9 @@ async function run() {
         //
         app.patch("/donate/:id", async (req, res) => {
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const {name, email} = req.body;
           const result = await donationReqCollection.updateOne({_id: new ObjectId(id)}, {$set: {donorName: name, donorEmail: email, donationStatus: 'inprogress'}});
           res.send(result);
@@ -377,9 +403,12 @@ async function run() {
 
         //
         app.get("/donation-requests/:id", async (req, res) => {
-          const id = req.params.id
+          const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const result = await donationReqCollection.findOne({_id: new ObjectId(id)});
-          res.send(result)
+          res.send(result);
         });
 
 
@@ -387,6 +416,9 @@ async function run() {
         app.patch("/donation-requests/edit/:id", verifyJWT, async (req, res) => {
           
           const id = req.params.id;
+          if (!ObjectId.isValid(id)) {
+            return res.status(400).send({message: "Invalid ID Format"});
+          }
           const {
             recipientName, recipientDistrict, recipientUpazila, hospitalName, fullAddress,
             bloodGroup, donationDate, donationTime, requestMessage
