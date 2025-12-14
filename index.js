@@ -249,8 +249,8 @@ async function run() {
 
         //
         app.get("/users", verifyJWT, verifyADMIN, async (req, res) => {
-          const result = await usersCollection.find({email: {$ne: req.tokenEmail}}).toArray();
-          res.send(result);
+          const users = await usersCollection.find({email: {$ne: req.tokenEmail}}).toArray();
+          res.send(users);
         });
 
 
@@ -318,24 +318,27 @@ async function run() {
 
         //
         app.get("/donation-requests", verifyJWT, async (req, res) => {
-          const emailQuery = req.query.email;
-          const statusFilterQuery = req.query.statusFilter;
+          const {email, statusFilter, limit, skip} = req.query;
 
-          if (emailQuery && statusFilterQuery) {
-            const result = await donationReqCollection.find({requesterEmail: emailQuery, donationStatus: statusFilterQuery}).sort({createdAt: -1}).toArray();
+          if (email && statusFilter) {
+            const count = await donationReqCollection.countDocuments({email, donationStatus: statusFilter})
+            const result = await donationReqCollection.find({requesterEmail: email, donationStatus: statusFilter}).sort({createdAt: -1}).toArray();
             return res.send(result);
           }
-          if (emailQuery) {
-            const result = await donationReqCollection.find({requesterEmail: emailQuery}).toArray();
-            return res.send(result);
+          if (email) {
+            const count = await donationReqCollection.countDocuments({requesterEmail: email});
+            const result = await donationReqCollection.find({requesterEmail: email}).toArray();
+            return res.send({result, count});
           }
-          if (statusFilterQuery) {
-            const result = await donationReqCollection.find({donationStatus: statusFilterQuery}).toArray();
-            return res.send(result);
+          if (statusFilter) {
+            const count = await donationReqCollection.countDocuments({donationStatus: statusFilter});
+            const result = await donationReqCollection.find({donationStatus: statusFilter}).skip(Number(skip)).limit(Number(limit)).toArray();
+            return res.send({result, count});
           }
 
-          const result = await donationReqCollection.find().toArray();
-          res.send(result);
+          const count = await donationReqCollection.countDocuments();
+          const result = await donationReqCollection.find().skip(Number(skip)).limit(Number(limit)).toArray();
+          res.send({result, count});
         });
 
 
