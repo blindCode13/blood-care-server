@@ -328,7 +328,7 @@ async function run() {
         //
         app.get("/donation-requests/public", async (req, res) => {
           const {limit, skip} = req.query;
-          const count = await donationReqCollection.countDocuments();
+          const count = await donationReqCollection.countDocuments({donationStatus: 'pending'});
           const result = await donationReqCollection.find({donationStatus: 'pending'}).skip(Number(skip)).limit(Number(limit)).toArray();
           res.send({result, count});
         });
@@ -405,7 +405,7 @@ async function run() {
         app.get("/donation-requests/:id", async (req, res) => {
           const id = req.params.id;
           if (!ObjectId.isValid(id)) {
-            return res.status(400).send({message: "Invalid ID Format"});
+            return res.send(null);
           }
           const result = await donationReqCollection.findOne({_id: new ObjectId(id)});
           res.send(result);
